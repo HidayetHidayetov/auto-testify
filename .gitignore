@@ -1,0 +1,14 @@
+/vendor/
+
+composer.lock
+.env
+*.log
+tests/Feature/*.php
+.idea/
+.vscode/
+*.sublime-*
+.DS_Store
+Thumbs.db
+/storage/*.key
+/storage/framework/*
+!/storage/framework/.gitignore

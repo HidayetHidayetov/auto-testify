@@ -1,0 +1,29 @@
+{
+    "name": "hidayetov/auto-testify",
+    "description": "Automatic test generator for Laravel models",
+    "type": "laravel-package",
+    "version": "1.0.0",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Hidayetov\\AutoTestify\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Hidayet Hidayetov",
+            "email": "hidayet.hidayetov@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "laravel/framework": "^11.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Hidayetov\\AutoTestify\\AutoTestifyServiceProvider"
+            ]
+        }
+    }
+}
