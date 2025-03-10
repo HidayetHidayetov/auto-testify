@@ -3,7 +3,9 @@
 namespace Hidayetov\AutoTestify\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use ReflectionClass;
 
 class GenerateModelTest extends Command
@@ -35,11 +37,11 @@ class GenerateModelTest extends Command
 
     protected function getTestStub($model, $modelClass)
     {
-        $fillable     = $this->getFillableFields($modelClass);
-        $attributes   = $this->generateAttributes($fillable);
+        $fillable = $this->getFillableFields($modelClass);
+        $attributes = $this->generateAttributes($fillable);
         $uniqueFields = $this->getUniqueFields($modelClass);
 
-        $stub  = "<?php\n\n";
+        $stub = "<?php\n\n";
         $stub .= "namespace Tests\Feature;\n\n";
         $stub .= "use Illuminate\Foundation\Testing\RefreshDatabase;\n";
         $stub .= "use Illuminate\Support\Facades\Hash;\n";
@@ -99,6 +101,29 @@ class GenerateModelTest extends Command
 
     protected function getUniqueFields($modelClass)
     {
+        $table = (new $modelClass())->getTable();
+
+        try {
+            DB::connection()->getPdo();
+            if (class_exists(\Doctrine\DBAL\Connection::class) && Schema::hasTable($table)) {
+                $schemaManager = DB::getDoctrineSchemaManager();
+                $indexes = $schemaManager->listTableIndexes($table);
+
+                $uniqueFields = [];
+                foreach ($indexes as $index) {
+                    if ($index->isUnique() && !$index->isPrimary()) {
+                        $columns = $index->getColumns();
+                        if (count($columns) === 1) {
+                            $uniqueFields[] = $columns[0];
+                        }
+                    }
+                }
+                return $uniqueFields;
+            }
+        } catch (\Exception $e) {
+            $this->warn("Database connection unavailable or table not migrated: " . $e->getMessage());
+        }
+
         try {
             $reflection = new ReflectionClass($modelClass);
             if ($reflection->hasProperty('unique')) {

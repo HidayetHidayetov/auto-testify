@@ -19,6 +19,9 @@
     "require": {
         "laravel/framework": "^11.0"
     },
+    "suggest": {
+        "doctrine/dbal": "Required for detecting unique fields from the database schema (^3.0)"
+    },
     "extra": {
         "laravel": {
             "providers": [
