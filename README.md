@@ -220,8 +220,7 @@ PASS  Tests\Feature\UserTest
 
 ## License
 
-This package is open-sourced under the [MIT License](https://github.com/HidayetHidayetov/auto-testify/blob/main/LICENSE).
----
+This package is open-sourced under the [MIT License](https://github.com/HidayetHidayetov/auto-testify/blob/master/LICENSE).
 
 ## Author
 
