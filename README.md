@@ -220,7 +220,7 @@ PASS  Tests\Feature\UserTest
 
 ## License
 
-This package is open-sourced under the This package is open-sourced under the [MIT License](LICENSE).
+This package is open-sourced under the This package is open-sourced under the [MIT License](8ecd58d226e55f2774af25879454783832b7e8fc).
 
 ---
 
