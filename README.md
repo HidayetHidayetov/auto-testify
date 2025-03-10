@@ -31,3 +31,45 @@ Add the package to your Laravel project:
 
 ```bash
 composer require hidayetov/auto-testify
+```
+
+### Step 2: (Optional) Enable Database Schema Detection
+If you want AutoTestify to detect unique fields from your database schema, install doctrine/dbal:
+
+```bash
+composer require doctrine/dbal
+```
+
+Without this, the package will rely on the $unique property in your models.
+
+## Usage
+### Generating a Test File
+Run the following Artisan command to generate a test file for a specific model:
+
+```bash 
+php artisan make:test-model ModelName
+```
+
+For example, to generate tests for a User model:
+
+```bash
+php artisan make:test-model User
+```
+
+This will create tests/Feature/UserTest.php with CRUD and uniqueness tests.
+
+### Example Model Configuration
+Define $fillable and (optionally) $unique properties in your model:
+
+
+```php 
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class User extends Model
+{
+    protected $fillable = ['name', 'email', 'password'];
+    protected $unique = ['email']; // Optional if not using database detection
+}
+```
