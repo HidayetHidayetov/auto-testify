@@ -6,6 +6,7 @@ use Hidayetov\AutoTestify\Helpers\TestUtils;
 
 class ValidationTestGenerator
 {
+    /** @var array<string, array<string, string>> */
     protected $supportedRules = [
         'required' => [
             'template' => "test_{model}_{field}_is_required",
@@ -29,7 +30,13 @@ class ValidationTestGenerator
         ],
     ];
 
-    public function generateTests($model, $rules, $attributes)
+    /**
+     * @param string $model
+     * @param array<string, string> $rules
+     * @param array<string, string> $attributes
+     * @return array<int, array{name: string, body: string}>
+     */
+    public function generateTests(string $model, array $rules, array $attributes): array
     {
         $tests = [];
         foreach ($rules as $field => $ruleString) {
@@ -76,22 +83,46 @@ class ValidationTestGenerator
         return $tests;
     }
 
-    protected function getRequiredAttributes($field, $attributes)
+    /**
+     * @param string $field
+     * @param array<string, string> $attributes
+     * @param mixed $param
+     * @return array<string, string>
+     */
+    protected function getRequiredAttributes(string $field, array $attributes, $param = null): array
     {
         return array_diff_key($attributes, [$field => '']);
     }
 
-    protected function getEmailAttributes($field, $attributes)
+    /**
+     * @param string $field
+     * @param array<string, string> $attributes
+     * @param mixed $param
+     * @return array<string, string>
+     */
+    protected function getEmailAttributes(string $field, array $attributes, $param = null): array
     {
         return array_merge($attributes, [$field => 'invalid-email']);
     }
 
-    protected function getMaxAttributes($field, $attributes, $param)
+    /**
+     * @param string $field
+     * @param array<string, string> $attributes
+     * @param string|null $param
+     * @return array<string, string>
+     */
+    protected function getMaxAttributes(string $field, array $attributes, ?string $param): array
     {
         return array_merge($attributes, [$field => str_repeat('a', (int)$param + 1)]);
     }
 
-    protected function getMinAttributes($field, $attributes, $param)
+    /**
+     * @param string $field
+     * @param array<string, string> $attributes
+     * @param string|null $param
+     * @return array<string, string>
+     */
+    protected function getMinAttributes(string $field, array $attributes, ?string $param): array
     {
         return array_merge($attributes, [$field => str_repeat('a', (int)$param - 1)]);
     }
