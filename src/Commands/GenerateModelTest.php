@@ -11,7 +11,7 @@ use ReflectionClass;
 class GenerateModelTest extends Command
 {
     protected $signature = 'make:test-model {model}';
-    protected $description = 'Generates a test file for a given model with CRUD tests';
+    protected $description = 'Generates a test file for a given model';
 
     public function handle()
     {
@@ -40,7 +40,7 @@ class GenerateModelTest extends Command
         $fillable = $this->getFillableFields($modelClass);
         $attributes = $this->generateAttributes($fillable);
         $uniqueFields = $this->getUniqueFields($modelClass);
-        $useDatabase = $this->canUseDatabase();
+        $isSoftDeletable = $this->isSoftDeletable($modelClass);
 
         $stub = "<?php\n\n";
         $stub .= "namespace Tests\Feature;\n\n";
@@ -49,9 +49,7 @@ class GenerateModelTest extends Command
         $stub .= "use Tests\TestCase;\n\n";
         $stub .= "class {$model}Test extends TestCase\n";
         $stub .= "{\n";
-        if ($useDatabase) {
-            $stub .= "    use RefreshDatabase;\n\n";
-        }
+        $stub .= "    use RefreshDatabase;\n\n";
 
         // Create Test
         $stub .= "    public function test_{$this->snakeCase($model)}_can_be_created_with_fillable_fields()\n";
@@ -74,23 +72,17 @@ class GenerateModelTest extends Command
         // Read Test
         $stub .= "\n    public function test_{$this->snakeCase($model)}_can_be_retrieved()\n";
         $stub .= "    {\n";
-        if (!$useDatabase) {
-            $stub .= "        \$this->markTestSkipped('Database connection unavailable, skipping retrieval test');\n";
-        } else {
-            $stub .= "        \$attributes = [\n";
-            foreach ($attributes as $key => $value) {
-                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
-            }
-            $stub .= "        ];\n";
-            $stub .= "        \${$this->camelCase($model)} = {$modelClass}::create(\$attributes);\n";
-            $stub .= "        \$retrieved = {$modelClass}::find(\${$this->camelCase($model)}->id);\n";
-            $stub .= "        \$this->assertNotNull(\$retrieved);\n";
-            foreach ($fillable as $field) {
-                if ($field === 'password') {
-                    $stub .= "        \$this->assertTrue(Hash::check('password', \$retrieved->{$field}));\n";
-                } else {
-                    $stub .= "        \$this->assertEquals(\$attributes['{$field}'], \$retrieved->{$field});\n";
-                }
+        $stub .= "        \$attributes = [\n";
+        foreach ($attributes as $key => $value) {
+            $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+        }
+        $stub .= "        ];\n";
+        $stub .= "        \${$this->camelCase($model)} = {$modelClass}::create(\$attributes);\n";
+        $stub .= "        \$retrieved = {$modelClass}::find(\${$this->camelCase($model)}->id);\n";
+        $stub .= "        \$this->assertNotNull(\$retrieved);\n";
+        foreach ($fillable as $field) {
+            if ($field !== 'password') { // Password hash olduğu üçün birbaşa müqayisə etmirik
+                $stub .= "        \$this->assertEquals(\${$this->camelCase($model)}->{$field}, \$retrieved->{$field});\n";
             }
         }
         $stub .= "    }\n";
@@ -98,31 +90,29 @@ class GenerateModelTest extends Command
         // Update Test
         $stub .= "\n    public function test_{$this->snakeCase($model)}_can_be_updated()\n";
         $stub .= "    {\n";
-        if (!$useDatabase) {
-            $stub .= "        \$this->markTestSkipped('Database connection unavailable, skipping update test');\n";
-        } else {
-            $stub .= "        \$attributes = [\n";
-            foreach ($attributes as $key => $value) {
-                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+        $stub .= "        \$attributes = [\n";
+        foreach ($attributes as $key => $value) {
+            $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+        }
+        $stub .= "        ];\n";
+        $stub .= "        \${$this->camelCase($model)} = {$modelClass}::create(\$attributes);\n";
+        $stub .= "        \$updatedAttributes = [\n";
+        foreach ($fillable as $key) {
+            if ($key === 'password') {
+                $stub .= "            '{$key}' => 'newpassword',\n";
+            } elseif (str_contains($key, 'email')) {
+                $stub .= "            '{$key}' => 'updated@example.com',\n";
+            } else {
+                $stub .= "            '{$key}' => 'Updated {$key}',\n";
             }
-            $stub .= "        ];\n";
-            $stub .= "        \${$this->camelCase($model)} = {$modelClass}::create(\$attributes);\n";
-            $stub .= "        \$updatedAttributes = [\n";
-            foreach ($fillable as $field) {
-                if ($field === 'password') {
-                    $stub .= "            '{$field}' => 'newpassword',\n";
-                } else {
-                    $stub .= "            '{$field}' => 'Updated ' . " . var_export($attributes[$field], true) . ",\n";
-                }
-            }
-            $stub .= "        ];\n";
-            $stub .= "        \${$this->camelCase($model)}->update(\$updatedAttributes);\n";
-            foreach ($fillable as $field) {
-                if ($field === 'password') {
-                    $stub .= "        \$this->assertTrue(Hash::check('newpassword', \${$this->camelCase($model)}->{$field}));\n";
-                } else {
-                    $stub .= "        \$this->assertEquals(\$updatedAttributes['{$field}'], \${$this->camelCase($model)}->{$field});\n";
-                }
+        }
+        $stub .= "        ];\n";
+        $stub .= "        \${$this->camelCase($model)}->update(\$updatedAttributes);\n";
+        foreach ($fillable as $field) {
+            if ($field === 'password') {
+                $stub .= "        \$this->assertTrue(Hash::check('newpassword', \${$this->camelCase($model)}->{$field}));\n";
+            } else {
+                $stub .= "        \$this->assertEquals(\$updatedAttributes['{$field}'], \${$this->camelCase($model)}->{$field});\n";
             }
         }
         $stub .= "    }\n";
@@ -130,38 +120,34 @@ class GenerateModelTest extends Command
         // Delete Test
         $stub .= "\n    public function test_{$this->snakeCase($model)}_can_be_deleted()\n";
         $stub .= "    {\n";
-        if (!$useDatabase) {
-            $stub .= "        \$this->markTestSkipped('Database connection unavailable, skipping delete test');\n";
+        $stub .= "        \$attributes = [\n";
+        foreach ($attributes as $key => $value) {
+            $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+        }
+        $stub .= "        ];\n";
+        $stub .= "        \${$this->camelCase($model)} = {$modelClass}::create(\$attributes);\n";
+        $stub .= "        \${$this->camelCase($model)}->delete();\n";
+        if ($isSoftDeletable) {
+            $stub .= "        \$this->assertSoftDeleted('" . $this->snakeCase($model) . "s', ['id' => \${$this->camelCase($model)}->id]);\n";
         } else {
-            $stub .= "        \$attributes = [\n";
-            foreach ($attributes as $key => $value) {
-                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
-            }
-            $stub .= "        ];\n";
-            $stub .= "        \${$this->camelCase($model)} = {$modelClass}::create(\$attributes);\n";
-            $stub .= "        \${$this->camelCase($model)}->delete();\n";
             $stub .= "        \$this->assertDatabaseMissing('" . $this->snakeCase($model) . "s', ['id' => \${$this->camelCase($model)}->id]);\n";
         }
         $stub .= "    }\n";
 
-        // Uniqueness Tests
+        // Uniklik Testləri
         foreach ($uniqueFields as $field) {
             if (in_array($field, $fillable)) {
                 $stub .= "\n    public function test_{$this->snakeCase($model)}_{$this->snakeCase($field)}_must_be_unique()\n";
                 $stub .= "    {\n";
-                if (!$useDatabase) {
-                    $stub .= "        \$this->markTestSkipped('Database connection unavailable, skipping uniqueness test');\n";
-                } else {
-                    $stub .= "        \$attributes = [\n";
-                    foreach ($attributes as $key => $value) {
-                        $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
-                    }
-                    $stub .= "        ];\n";
-                    $stub .= "        {$modelClass}::create(\$attributes);\n";
-                    $stub .= "        \$this->assertDatabaseCount('" . $this->snakeCase($model) . "s', 1);\n";
-                    $stub .= "        \$this->expectException(\\Illuminate\\Database\\QueryException::class);\n";
-                    $stub .= "        {$modelClass}::create(\$attributes);\n";
+                $stub .= "        \$attributes = [\n";
+                foreach ($attributes as $key => $value) {
+                    $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
                 }
+                $stub .= "        ];\n";
+                $stub .= "        {$modelClass}::create(\$attributes);\n";
+                $stub .= "        \$this->assertDatabaseCount('" . $this->snakeCase($model) . "s', 1);\n";
+                $stub .= "        \$this->expectException(\\Illuminate\\Database\\QueryException::class);\n";
+                $stub .= "        {$modelClass}::create(\$attributes);\n";
                 $stub .= "    }\n";
             }
         }
@@ -186,7 +172,7 @@ class GenerateModelTest extends Command
     {
         $table = (new $modelClass())->getTable();
 
-        if ($this->canUseDatabase() && class_exists(\Doctrine\DBAL\Connection::class) && Schema::hasTable($table)) {
+        if (class_exists(\Doctrine\DBAL\Connection::class) && Schema::hasTable($table)) {
             try {
                 $schemaManager = DB::getDoctrineSchemaManager();
                 $indexes = $schemaManager->listTableIndexes($table);
@@ -219,14 +205,9 @@ class GenerateModelTest extends Command
         }
     }
 
-    protected function canUseDatabase()
+    protected function isSoftDeletable($modelClass)
     {
-        try {
-            DB::connection()->getPdo();
-            return true;
-        } catch (\Exception $e) {
-            return false;
-        }
+        return in_array('Illuminate\Database\Eloquent\SoftDeletes', class_uses($modelClass));
     }
 
     protected function generateAttributes($fillable)
