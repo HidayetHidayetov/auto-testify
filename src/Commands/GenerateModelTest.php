@@ -15,7 +15,7 @@ class GenerateModelTest extends Command
     protected $signature = 'make:test-model {model}';
     protected $description = 'Generates a test file for a given model';
 
-    public function handle()
+    public function handle(): void
     {
         $model = $this->argument('model');
         $this->info("Generating test file for {$model}...");
@@ -37,7 +37,7 @@ class GenerateModelTest extends Command
         $this->info("Test file created successfully at: {$testPath}");
     }
 
-    protected function getTestStub($model, $modelClass)
+    protected function getTestStub(string $model, string $modelClass): string
     {
         $fillable = $this->getFillableFields($modelClass);
         $attributes = $this->generateAttributes($fillable);
@@ -56,7 +56,6 @@ class GenerateModelTest extends Command
         $stub .= "    use RefreshDatabase;\n\n";
         $stub .= "    protected \$rules = " . var_export($rules, true) . ";\n\n";
 
-        // CRUD Testləri
         $stub .= "    public function test_" . TestUtils::snakeCase($model) . "_can_be_created_with_fillable_fields()\n";
         $stub .= "    {\n";
         $stub .= "        \$attributes = [\n";
@@ -101,8 +100,8 @@ class GenerateModelTest extends Command
         $stub .= "        \$" . TestUtils::camelCase($model) . " = {$modelClass}::create(\$attributes);\n";
         $stub .= "        \$updatedAttributes = [\n";
         foreach ($fillable as $key) {
-            if ($key === ' "password"') {
-                $stub .= "            '{$key}' => 'newpassword',\n";
+            if ($key === 'password') {
+                $stub .= "            '{$key}' => Hash::make('newpassword'),\n"; // Şifrələnmiş dəyər
             } elseif (str_contains($key, 'email')) {
                 $stub .= "            '{$key}' => 'updated@example.com',\n";
             } else {
@@ -136,7 +135,6 @@ class GenerateModelTest extends Command
         }
         $stub .= "    }\n";
 
-        // Uniklik Testləri
         foreach ($uniqueFields as $field) {
             if (in_array($field, $fillable)) {
                 $stub .= "\n    public function test_" . TestUtils::snakeCase($model) . "_" . TestUtils::snakeCase($field) . "_must_be_unique()\n";
@@ -154,7 +152,6 @@ class GenerateModelTest extends Command
             }
         }
 
-        // Validasyon Testləri
         if (!empty($rules)) {
             $validationGenerator = new ValidationTestGenerator();
             $validationTests = $validationGenerator->generateTests($model, $rules, $attributes);
@@ -167,7 +164,7 @@ class GenerateModelTest extends Command
         return $stub;
     }
 
-    protected function getFillableFields($modelClass)
+    protected function getFillableFields(string $modelClass): array
     {
         try {
             $reflection = new ReflectionClass($modelClass);
@@ -179,7 +176,7 @@ class GenerateModelTest extends Command
         }
     }
 
-    protected function getUniqueFields($modelClass)
+    protected function getUniqueFields(string $modelClass): array
     {
         $table = (new $modelClass())->getTable();
 
@@ -216,12 +213,12 @@ class GenerateModelTest extends Command
         }
     }
 
-    protected function isSoftDeletable($modelClass)
+    protected function isSoftDeletable(string $modelClass): bool
     {
         return in_array('Illuminate\Database\Eloquent\SoftDeletes', class_uses($modelClass));
     }
 
-    protected function getValidationRules($modelClass)
+    protected function getValidationRules(string $modelClass): array
     {
         try {
             $reflection = new ReflectionClass($modelClass);
@@ -236,7 +233,7 @@ class GenerateModelTest extends Command
         }
     }
 
-    protected function generateAttributes($fillable)
+    protected function generateAttributes(array $fillable): array
     {
         $attributes = [];
         foreach ($fillable as $field) {
