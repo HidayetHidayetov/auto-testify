@@ -41,17 +41,20 @@ class GenerateModelTest extends Command
         $attributes = $this->generateAttributes($fillable);
         $uniqueFields = $this->getUniqueFields($modelClass);
         $isSoftDeletable = $this->isSoftDeletable($modelClass);
+        $rules = $this->getValidationRules($modelClass);
 
         $stub = "<?php\n\n";
         $stub .= "namespace Tests\Feature;\n\n";
         $stub .= "use Illuminate\Foundation\Testing\RefreshDatabase;\n";
         $stub .= "use Illuminate\Support\Facades\Hash;\n";
-        $stub .= "use Tests\TestCase;\n\n";
+        $stub .= "use Illuminate\Support\Facades\Validator;\n";
+        $stub .= "use Tests\TestCase;\n";
+        $stub .= "use Illuminate\Validation\ValidationException;\n\n";
         $stub .= "class {$model}Test extends TestCase\n";
         $stub .= "{\n";
         $stub .= "    use RefreshDatabase;\n\n";
 
-        // Create Test
+        // CRUD Testləri
         $stub .= "    public function test_{$this->snakeCase($model)}_can_be_created_with_fillable_fields()\n";
         $stub .= "    {\n";
         $stub .= "        \$attributes = [\n";
@@ -69,7 +72,6 @@ class GenerateModelTest extends Command
         }
         $stub .= "    }\n";
 
-        // Read Test
         $stub .= "\n    public function test_{$this->snakeCase($model)}_can_be_retrieved()\n";
         $stub .= "    {\n";
         $stub .= "        \$attributes = [\n";
@@ -81,13 +83,12 @@ class GenerateModelTest extends Command
         $stub .= "        \$retrieved = {$modelClass}::find(\${$this->camelCase($model)}->id);\n";
         $stub .= "        \$this->assertNotNull(\$retrieved);\n";
         foreach ($fillable as $field) {
-            if ($field !== 'password') { // Password hash olduğu üçün birbaşa müqayisə etmirik
+            if ($field !== 'password') {
                 $stub .= "        \$this->assertEquals(\${$this->camelCase($model)}->{$field}, \$retrieved->{$field});\n";
             }
         }
         $stub .= "    }\n";
 
-        // Update Test
         $stub .= "\n    public function test_{$this->snakeCase($model)}_can_be_updated()\n";
         $stub .= "    {\n";
         $stub .= "        \$attributes = [\n";
@@ -117,7 +118,6 @@ class GenerateModelTest extends Command
         }
         $stub .= "    }\n";
 
-        // Delete Test
         $stub .= "\n    public function test_{$this->snakeCase($model)}_can_be_deleted()\n";
         $stub .= "    {\n";
         $stub .= "        \$attributes = [\n";
@@ -149,6 +149,96 @@ class GenerateModelTest extends Command
                 $stub .= "        \$this->expectException(\\Illuminate\\Database\\QueryException::class);\n";
                 $stub .= "        {$modelClass}::create(\$attributes);\n";
                 $stub .= "    }\n";
+            }
+        }
+
+        // Validasyon Testləri
+        if (!empty($rules)) {
+            $stub .= "\n    protected \$rules = " . var_export($rules, true) . ";\n";
+            foreach ($rules as $field => $ruleString) {
+                $rulesArray = explode('|', $ruleString);
+                foreach ($rulesArray as $rule) {
+                    if (str_contains($rule, ':')) {
+                        [$ruleName, $param] = explode(':', $rule);
+                    } else {
+                        $ruleName = $rule;
+                        $param = null;
+                    }
+
+                    // Required Test
+                    if ($ruleName === 'required') {
+                        $stub .= "\n    public function test_{$this->snakeCase($model)}_{$this->snakeCase($field)}_is_required()\n";
+                        $stub .= "    {\n";
+                        $stub .= "        \$attributes = [\n";
+                        foreach ($attributes as $key => $value) {
+                            if ($key !== $field) {
+                                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+                            }
+                        }
+                        $stub .= "        ];\n";
+                        $stub .= "        \$validator = Validator::make(\$attributes, \$this->rules);\n";
+                        $stub .= "        \$this->assertTrue(\$validator->fails());\n";
+                        $stub .= "        \$this->assertArrayHasKey('{$field}', \$validator->errors()->toArray());\n";
+                        $stub .= "    }\n";
+                    }
+
+                    // Email Test
+                    if ($ruleName === 'email') {
+                        $stub .= "\n    public function test_{$this->snakeCase($model)}_{$this->snakeCase($field)}_must_be_valid_email()\n";
+                        $stub .= "    {\n";
+                        $stub .= "        \$attributes = [\n";
+                        foreach ($attributes as $key => $value) {
+                            if ($key === $field) {
+                                $stub .= "            '{$key}' => 'invalid-email',\n";
+                            } else {
+                                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+                            }
+                        }
+                        $stub .= "        ];\n";
+                        $stub .= "        \$validator = Validator::make(\$attributes, \$this->rules);\n";
+                        $stub .= "        \$this->assertTrue(\$validator->fails());\n";
+                        $stub .= "        \$this->assertArrayHasKey('{$field}', \$validator->errors()->toArray());\n";
+                        $stub .= "    }\n";
+                    }
+
+                    // Max Length Test
+                    if ($ruleName === 'max' && $param) {
+                        $stub .= "\n    public function test_{$this->snakeCase($model)}_{$this->snakeCase($field)}_must_not_exceed_{$param}_characters()\n";
+                        $stub .= "    {\n";
+                        $stub .= "        \$attributes = [\n";
+                        foreach ($attributes as $key => $value) {
+                            if ($key === $field) {
+                                $stub .= "            '{$key}' => str_repeat('a', " . ($param + 1) . "),\n";
+                            } else {
+                                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+                            }
+                        }
+                        $stub .= "        ];\n";
+                        $stub .= "        \$validator = Validator::make(\$attributes, \$this->rules);\n";
+                        $stub .= "        \$this->assertTrue(\$validator->fails());\n";
+                        $stub .= "        \$this->assertArrayHasKey('{$field}', \$validator->errors()->toArray());\n";
+                        $stub .= "    }\n";
+                    }
+
+                    // Min Length Test
+                    if ($ruleName === 'min' && $param) {
+                        $stub .= "\n    public function test_{$this->snakeCase($model)}_{$this->snakeCase($field)}_must_be_at_least_{$param}_characters()\n";
+                        $stub .= "    {\n";
+                        $stub .= "        \$attributes = [\n";
+                        foreach ($attributes as $key => $value) {
+                            if ($key === $field) {
+                                $stub .= "            '{$key}' => str_repeat('a', " . ($param - 1) . "),\n";
+                            } else {
+                                $stub .= "            '{$key}' => " . var_export($value, true) . ",\n";
+                            }
+                        }
+                        $stub .= "        ];\n";
+                        $stub .= "        \$validator = Validator::make(\$attributes, \$this->rules);\n";
+                        $stub .= "        \$this->assertTrue(\$validator->fails());\n";
+                        $stub .= "        \$this->assertArrayHasKey('{$field}', \$validator->errors()->toArray());\n";
+                        $stub .= "    }\n";
+                    }
+                }
             }
         }
 
@@ -208,6 +298,21 @@ class GenerateModelTest extends Command
     protected function isSoftDeletable($modelClass)
     {
         return in_array('Illuminate\Database\Eloquent\SoftDeletes', class_uses($modelClass));
+    }
+
+    protected function getValidationRules($modelClass)
+    {
+        try {
+            $reflection = new ReflectionClass($modelClass);
+            if ($reflection->hasProperty('rules')) {
+                $property = $reflection->getProperty('rules');
+                $property->setAccessible(true);
+                return $property->getValue();
+            }
+            return [];
+        } catch (\Exception $e) {
+            return [];
+        }
     }
 
     protected function generateAttributes($fillable)
